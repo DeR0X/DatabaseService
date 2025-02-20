@@ -1,20 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-
-/* // GET Beispiel
-const employees = await axios.get('http://localhost:5000/api/employees');
-
-// POST Beispiel
-const newEmployee = await axios.post('http://localhost:5000/api/employees', {
-  firstName: 'Max',
-  lastName: 'Mustermann',
-  email: 'max@example.com',
-  department: 'IT'
-});
- */
-
-
 function App() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -146,19 +132,21 @@ function App() {
               <th className="px-4 py-2">Last Name</th>
               <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2">Department</th>
+              <th className="px-4 py-2">Qualifications</th>
               <th className="px-4 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
             {employees.map((employee) => (
-              <tr key={employee.employeeId} className="border-t">
-                <td className="px-4 py-2">{employee.firstName}</td>
-                <td className="px-4 py-2">{employee.lastName}</td>
+              <tr key={employee.ID} className="border-t">
+                <td className="px-4 py-2">{employee.Firstname}</td>
+                <td className="px-4 py-2">{employee.Surname}</td>
                 <td className="px-4 py-2">{employee.email}</td>
-                <td className="px-4 py-2">{employee.department}</td>
+                <td className="px-4 py-2">{employee.Department}</td>
+                <td className="px-4 py-2">{employee.Qualifications}</td>
                 <td className="px-4 py-2">
                   <button
-                    onClick={() => handleDelete(employee.employeeId)}
+                    onClick={() => handleDelete(employee.ID)}
                     className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                   >
                     Delete
