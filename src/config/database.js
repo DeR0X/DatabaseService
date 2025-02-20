@@ -25,10 +25,16 @@ export const sqlConfig = {
   database: process.env.DB_NAME,
   server: process.env.DB_SERVER,
   options: {
-    encrypt: true,
-    trustServerCertificate: true,
-    connectionTimeout: 30000,
-    requestTimeout: 30000
+    encrypt: true, // Verschlüsselung aktiviert
+    trustServerCertificate: true, // Serverzertifikat vertrauen
+    enableArithAbort: true,
+    authentication: {
+      type: 'default', // SQL Server Authentication
+      options: {
+        userName: process.env.DB_USER,
+        password: process.env.DB_PASSWORD
+      }
+    }
   },
   pool: {
     max: 10,
@@ -41,7 +47,7 @@ async function testServerConnection(config) {
   try {
     const testConfig = {
       ...config,
-      database: 'master' // Versuche zuerst mit master-Datenbank zu verbinden
+      database: 'QMatrix_Test' 
     };
     await sql.connect(testConfig);
     console.log('✓ Server-Verbindung erfolgreich');
@@ -59,7 +65,7 @@ async function testAuthentication(config) {
       ...config,
       database: 'master'
     };
-    await sql.connect(testConfig);
+    await sql.connect(sqlConfig);
     console.log('✓ Authentifizierung erfolgreich');
     await sql.close();
     return true;

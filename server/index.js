@@ -8,71 +8,71 @@ const port = 5000;
 app.use(cors());
 app.use(express.json());
 
-// GET all employees with filtering and search
+// GET Mitarbeiter mit Filtern und Suche
 app.get('/api/employees', async (req, res) => {
   try {
     const { 
       search,
       department,
-      position,
-      active,
-      sortBy = 'lastName',
+      qualification,
+      isActive = true,
+      sortBy = 'Surname',
       sortOrder = 'asc'
     } = req.query;
 
     const pool = await connectToDatabase();
     let query = `
-      SELECT 
-        e.employeeId,
-        e.firstName,
-        e.lastName,
+      SELECT DISTINCT
+        e.ID,
+        e.Surname,
+        e.Firstname,
         e.email,
-        d.departmentName as department,
-        p.positionName as position,
-        e.isActive
+        d.Department,
+        STRING_AGG(q.Name, ', ') WITHIN GROUP (ORDER BY q.Name) as Qualifications
       FROM tblEmployees e
-      LEFT JOIN tblDepartments d ON e.departmentId = d.departmentId
-      LEFT JOIN tblPositions p ON e.positionId = p.positionId
-      WHERE 1=1
+      LEFT JOIN tblDepartments d ON e.DepartmentID = d.DepartmentID_Atoss
+      LEFT JOIN tblEmployee_Qualifications eq ON e.ID = eq.EmployeeID
+      LEFT JOIN tblQualifications q ON eq.QualificationID = q.ID
+      WHERE e.isActive = @isActive
     `;
 
-    const params = {};
+    const params = {
+      isActive: isActive === 'true' ? 1 : 0
+    };
 
     if (search) {
       query += ` AND (
-        e.firstName LIKE @search
-        OR e.lastName LIKE @search
+        e.Surname LIKE @search
+        OR e.Firstname LIKE @search
         OR e.email LIKE @search
-        OR e.phoneNumber LIKE @search
       )`;
       params.search = `%${search}%`;
     }
 
     if (department) {
-      query += ` AND d.departmentId = @department`;
+      query += ` AND d.DepartmentID_Atoss = @department`;
       params.department = department;
     }
 
-    if (position) {
-      query += ` AND p.positionId = @position`;
-      params.position = position;
+    if (qualification) {
+      query += ` AND EXISTS (
+        SELECT 1 FROM tblEmployee_Qualifications eq2
+        JOIN tblQualifications q2 ON eq2.QualificationID = q2.ID
+        WHERE eq2.EmployeeID = e.ID AND q2.ID = @qualification
+      )`;
+      params.qualification = qualification;
     }
 
-    if (active !== undefined) {
-      query += ` AND e.isActive = @active`;
-      params.active = active === 'true' ? 1 : 0;
-    }
+    query += ` GROUP BY e.ID, e.Surname, e.Firstname, e.email, d.Department`;
 
-    // Add sorting
+    // Sortierung
     query += ` ORDER BY ${
-      sortBy === 'department' ? 'd.departmentName' :
-      sortBy === 'position' ? 'p.positionName' :
-      'e.lastName'
-    } ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
+      sortBy === 'department' ? 'd.Department' :
+      sortBy === 'qualifications' ? 'Qualifications' :
+      `e.${sortBy}`
+    } ${sortOrder.toUpperCase()}`;
 
     let request = pool.request();
-    
-    // Add parameters to request
     Object.entries(params).forEach(([key, value]) => {
       request = request.input(key, value);
     });
@@ -86,7 +86,7 @@ app.get('/api/employees', async (req, res) => {
   }
 });
 
-// GET employee statistics
+// GET Mitarbeiter-Statistiken
 app.get('/api/employees/stats', async (req, res) => {
   try {
     const pool = await connectToDatabase();
@@ -94,34 +94,41 @@ app.get('/api/employees/stats', async (req, res) => {
     const stats = await pool.request().query(`
       SELECT
         COUNT(*) as totalEmployees,
-        COUNT(CASE WHEN isActive = 1 THEN 1 END) as activeEmployees,
-        COUNT(DISTINCT departmentId) as departmentCount,
-        COUNT(DISTINCT positionId) as positionCount
+        SUM(CASE WHEN isActive = 1 THEN 1 ELSE 0 END) as activeEmployees,
+        COUNT(DISTINCT DepartmentID) as departmentCount,
+        (
+          SELECT COUNT(DISTINCT QualificationID)
+          FROM tblEmployee_Qualifications
+        ) as qualificationCount
       FROM tblEmployees
     `);
 
     const departmentStats = await pool.request().query(`
       SELECT 
-        d.departmentName,
-        COUNT(*) as employeeCount,
-      FROM tblEmployees e
-      JOIN tblDepartments d ON e.departmentId = d.departmentId
-      WHERE e.isActive = 1
-      GROUP BY d.departmentName
+        d.Department,
+        COUNT(e.ID) as employeeCount
+      FROM tblDepartments d
+      LEFT JOIN tblEmployees e ON d.DepartmentID_Atoss = e.DepartmentID AND e.isActive = 1
+      GROUP BY d.Department
+      ORDER BY employeeCount DESC
     `);
 
-    const salaryRanges = await pool.request().query(`
+    const qualificationStats = await pool.request().query(`
       SELECT 
-        COUNT(*) as employeeCount
-      FROM tblEmployees
-      WHERE isActive = 1
+        q.Name as qualification,
+        COUNT(eq.EmployeeID) as employeeCount
+      FROM tblQualifications q
+      LEFT JOIN tblEmployee_Qualifications eq ON q.ID = eq.QualificationID
+      LEFT JOIN tblEmployees e ON eq.EmployeeID = e.ID AND e.isActive = 1
+      GROUP BY q.Name
+      ORDER BY employeeCount DESC
     `);
 
     await pool.close();
     res.json({
       overview: stats.recordset[0],
       departmentStats: departmentStats.recordset,
-      salaryDistribution: salaryRanges.recordset
+      qualificationStats: qualificationStats.recordset
     });
   } catch (err) {
     console.error('Error:', err);
@@ -129,103 +136,89 @@ app.get('/api/employees/stats', async (req, res) => {
   }
 });
 
-// GET employee search suggestions
-app.get('/api/employees/search', async (req, res) => {
+// GET Mitarbeiter-Details mit Qualifikationen und Skills
+app.get('/api/employees/:id', async (req, res) => {
   try {
-    const { query } = req.query;
     const pool = await connectToDatabase();
-    const result = await pool.request()
-      .input('query', `%${query}%`)
-      .query(`
-        SELECT TOP 10
-          e.employeeId,
-          e.firstName,
-          e.lastName,
-          e.email,
-          d.departmentName as department
-        FROM tblEmployees e
-        LEFT JOIN tblDepartments d ON e.departmentId = d.departmentId
-        WHERE 
-          e.isActive = 1
-          AND (
-            e.firstName LIKE @query
-            OR e.lastName LIKE @query
-            OR e.email LIKE @query
-          )
-        ORDER BY e.lastName, e.firstName
-      `);
     
-    await pool.close();
-    res.json(result.recordset);
-  } catch (err) {
-    console.error('Error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// GET department statistics
-app.get('/api/departments/stats', async (req, res) => {
-  try {
-    const pool = await connectToDatabase();
-    const result = await pool.request()
+    // Basis-Informationen
+    const employeeInfo = await pool.request()
+      .input('id', req.params.id)
       .query(`
         SELECT 
-          d.id,
-          d.departmentid_atoss,
-          d.department,
-        FROM tblDepartments d
-        LEFT JOIN tblEmployees e ON d.departmentId = e.departmentId AND e.isActive = 1
-        GROUP BY d.departmentId, d.departmentName
-        ORDER BY d.departmentName
+          e.ID,
+          e.Surname,
+          e.Firstname,
+          e.email,
+          d.Department
+        FROM tblEmployees e
+        LEFT JOIN tblDepartments d ON e.DepartmentID = d.DepartmentID_Atoss
+        WHERE e.ID = @id
       `);
-    
-    await pool.close();
-    res.json(result.recordset);
-  } catch (err) {
-    console.error('Error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
-// DELETE employee (soft delete)
-app.delete('/api/employees/:id', async (req, res) => {
-  try {
-    const pool = await connectToDatabase();
-    
-    // Check if employee exists
-    const checkResult = await pool.request()
-      .input('id', req.params.id)
-      .query('SELECT employeeId FROM tblEmployees WHERE employeeId = @id');
-    
-    if (checkResult.recordset.length === 0) {
-      await pool.close();
+    if (employeeInfo.recordset.length === 0) {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    // Soft delete by setting isActive to false
-    await pool.request()
+    // Qualifikationen
+    const qualifications = await pool.request()
       .input('id', req.params.id)
       .query(`
-        UPDATE tblEmployees
-        SET isActive = 0
-        WHERE employeeId = @id
+        SELECT 
+          q.Name,
+          q.Description,
+          eq.QualifiedUntil
+        FROM tblEmployee_Qualifications eq
+        JOIN tblQualifications q ON eq.QualificationID = q.ID
+        WHERE eq.EmployeeID = @id
       `);
-    
+
+    // Zusätzliche Skills
+    const skills = await pool.request()
+      .input('id', req.params.id)
+      .query(`
+        SELECT 
+          s.Name,
+          s.Description
+        FROM tblEmployee_AdditionalSkills eas
+        JOIN tblAdditionalSkills s ON eas.SkillID = s.ID
+        WHERE eas.EmployeeID = @id
+      `);
+
+    // Schulungen
+    const trainings = await pool.request()
+      .input('id', req.params.id)
+      .query(`
+        SELECT 
+          t.Name,
+          t.Description,
+          t.Qualification_ValidTo,
+          CONCAT(e.Firstname, ' ', e.Surname) as TrainerName
+        FROM tblEmployee_Qualifications_Trainings eqt
+        JOIN tblTraining t ON eqt.TrainingID = t.ID
+        LEFT JOIN tblEmployees e ON t.TrainerID = e.ID
+        WHERE eqt.EmployeeID = @id
+      `);
+
     await pool.close();
-    res.status(204).send();
+    res.json({
+      ...employeeInfo.recordset[0],
+      qualifications: qualifications.recordset,
+      skills: skills.recordset,
+      trainings: trainings.recordset
+    });
   } catch (err) {
     console.error('Error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// GET departments
+// GET Abteilungen
 app.get('/api/departments', async (req, res) => {
   try {
     const pool = await connectToDatabase();
     const result = await pool.request()
-      .query('SELECT * FROM tblDepartments ORDER BY departmentName');
-    
+      .query('SELECT DepartmentID_Atoss as id, Department as name FROM tblDepartments ORDER BY Department');
     await pool.close();
     res.json(result.recordset);
   } catch (err) {
@@ -234,13 +227,38 @@ app.get('/api/departments', async (req, res) => {
   }
 });
 
-// GET positions
-app.get('/api/positions', async (req, res) => {
+// GET Qualifikationen
+app.get('/api/qualifications', async (req, res) => {
   try {
     const pool = await connectToDatabase();
     const result = await pool.request()
-      .query('SELECT * FROM tblPositions ORDER BY positionName');
-    
+      .query('SELECT ID as id, Name as name, Description FROM tblQualifications ORDER BY Name');
+    await pool.close();
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET Trainer
+app.get('/api/trainers', async (req, res) => {
+  try {
+    const pool = await connectToDatabase();
+    const result = await pool.request()
+      .query(`
+        SELECT DISTINCT
+          e.ID,
+          e.Surname,
+          e.Firstname,
+          STRING_AGG(q.Name, ', ') WITHIN GROUP (ORDER BY q.Name) as Qualifications
+        FROM tblEmployees e
+        JOIN tblQualification_Trainer qt ON e.ID = qt.EmployeeID
+        JOIN tblQualifications q ON qt.QualificationID = q.ID
+        WHERE e.isActive = 1
+        GROUP BY e.ID, e.Surname, e.Firstname
+        ORDER BY e.Surname, e.Firstname
+      `);
     await pool.close();
     res.json(result.recordset);
   } catch (err) {
@@ -250,5 +268,5 @@ app.get('/api/positions', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`Server läuft auf Port ${port}`);
 });
