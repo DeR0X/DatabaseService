@@ -44,8 +44,8 @@ Eine moderne Webanwendung zur Verwaltung von Mitarbeiterdaten mit React Frontend
 
 1. Repository klonen:
    ```bash
-   git clone [repository-url]
-   cd [projekt-verzeichnis]
+   git clone [https://github.com/DeR0X/DatabaseService]
+   cd DatabaseService
    ```
 
 2. Dependencies installieren:
