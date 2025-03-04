@@ -1,6 +1,3 @@
-# DatabaseService
-
-
 # QMatrix Employee Management System
 
 Eine moderne Webanwendung zur Verwaltung von Mitarbeiterdaten mit React Frontend und Express/SQL Server Backend.
@@ -8,11 +5,18 @@ Eine moderne Webanwendung zur Verwaltung von Mitarbeiterdaten mit React Frontend
 ## 🚀 Features
 
 - **Mitarbeiterverwaltung**
-  - Anzeige aller Mitarbeiter
-  - Detailansicht einzelner Mitarbeiter
-  - Hinzufügen neuer Mitarbeiter
-  - Bearbeiten bestehender Mitarbeiter
-  - Löschen von Mitarbeitern
+  - Anzeige aller Mitarbeiter mit Paginierung
+  - Detaillierte Profilansicht mit allen Mitarbeiterdaten
+  - Filterung und Sortierung der Mitarbeiterliste
+  - Statistiken zur Mitarbeiterbasis
+
+- **Umfassende Datenintegration**
+  - Abteilungen (Departments)
+  - Jobtitel (Job Titles)
+  - Qualifikationen (Qualifications)
+  - Zusätzliche Fähigkeiten (Additional Skills)
+  - Schulungen und Trainings (Trainings)
+  - Trainer-Qualifikationen (Qualification Trainers)
 
 - **Erweiterte Filterfunktionen**
   - Paginierung
@@ -26,7 +30,7 @@ Eine moderne Webanwendung zur Verwaltung von Mitarbeiterdaten mit React Frontend
 - **Frontend**
   - React
   - Axios für API-Anfragen
-  - Tailwind CSS für Styling
+  - Responsive Design mit CSS
 
 - **Backend**
   - Node.js
@@ -108,6 +112,43 @@ Eine moderne Webanwendung zur Verwaltung von Mitarbeiterdaten mit React Frontend
   - Erweiterte Detailansicht eines Mitarbeiters
   - Inkl. Abteilungsinformationen
 
+### Zusätzliche Endpunkte
+
+- `GET /api/departments`
+  - Liefert alle Abteilungen zurück
+
+- `GET /api/job-titles`
+  - Liefert alle Jobtitel zurück
+
+- `GET /api/qualifications`
+  - Liefert alle Qualifikationen zurück
+
+- `GET /api/additional-skills`
+  - Liefert alle zusätzlichen Fähigkeiten zurück
+
+- `GET /api/trainings`
+  - Liefert alle Schulungen zurück
+
+- `GET /api/employee-qualifications/:employeeId`
+  - Liefert alle Qualifikationen eines bestimmten Mitarbeiters zurück
+  - Parameter: `employeeId` (Mitarbeiter-ID)
+
+- `GET /api/employee-skills/:employeeId`
+  - Liefert alle zusätzlichen Fähigkeiten eines bestimmten Mitarbeiters zurück
+  - Parameter: `employeeId` (Mitarbeiter-ID)
+
+- `GET /api/employee-trainings/:employeeId`
+  - Liefert alle Schulungen eines bestimmten Mitarbeiters zurück
+  - Parameter: `employeeId` (Mitarbeiter-ID)
+
+- `GET /api/qualification-trainers`
+  - Liefert alle Qualifikationstrainer zurück
+
+- `GET /api/employee-profile/:employeeId`
+  - Liefert ein umfassendes Profil eines bestimmten Mitarbeiters zurück
+  - Enthält alle Informationen zu Qualifikationen, Fähigkeiten, Schulungen und Trainer-Qualifikationen
+  - Parameter: `employeeId` (Mitarbeiter-ID)
+
 ## 🔍 Beispiel-Anfragen
 
 ```bash
@@ -125,7 +166,27 @@ GET http://localhost:5000/api/v2/employees?sortBy=Surname&sortOrder=asc
 
 # Kombinierte Filter
 GET http://localhost:5000/api/v2/employees?department=IT&isActive=true&sortBy=Surname
+
+# Umfassendes Mitarbeiterprofil
+GET http://localhost:5000/api/employee-profile/12345
 ```
+
+## 📱 Frontend-Funktionen
+
+- **Mitarbeiterliste**
+  - Tabellarische Übersicht aller Mitarbeiter
+  - Sortierung durch Klick auf Spaltenüberschriften
+  - Suchfeld für schnelle Filterung
+  - Abteilungsfilter
+  - Paginierung für große Datensätze
+
+- **Mitarbeiterprofil**
+  - Detaillierte Ansicht aller Mitarbeiterdaten
+  - Grundinformationen (Name, Email, Abteilung, Jobtitel)
+  - Qualifikationen mit Gültigkeitsdaten
+  - Zusätzliche Fähigkeiten
+  - Absolvierte Schulungen mit Daten
+  - Trainer-Qualifikationen (falls vorhanden)
 
 ## 📝 Entwicklungshinweise
 
